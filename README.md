@@ -10,8 +10,8 @@ Convert a PDF to a vertically-stacked image.
 
 optional arguments:
   -h, --help            show this help message and exit
-  -i DIR, --input DIR   Input PDF file.
-  -o DIR, --output DIR  Output image file.
+  -i DIR, --input DIR   Input PDF file or folder containing PDF files.
+  -o DIR, --output DIR  Output image file. Default: stacked {filename}.png
   -w INT, --width INT   Output image width. Default: maximum width among all pages.
   --pdf-to-img-dpi INT  Image quality for the images converted from PDF, in DPI. Default: 300.
   --first-page INT      First page to process. Default: None.
@@ -32,6 +32,14 @@ All the examples are for Linux and macOS users. If you are on Windows, you may n
     ```bash
     $ python3 pdf_to_stacked_img.py -i "TestPDF.pdf" -o "TestPDF.png"
     ```
+
+1. Convert all PDFs in folder `MyPDFs`, which contains `PDF1.pdf`, `PDF2.pdf`, ... into `Out PDF1.pdf`, `Out PDF2.pdf`, ...
+
+    ```bash
+    $ python3 pdf_to_stacked_img.py -i "MyPDFs" -o "Out {filename}.png"
+    ```
+
+    Note that `{filename}` will be replaced by the PDF's filename. You can also include `{number}` as part of the filename to include the index. For example, `-o "{number} - {filename}.png"`, we could get filenames like `1 - PDF1.png`, `2 - PDF2.png`, ...
 
 2. Convert `TestPDF.pdf` to `TestPDF.png`. The expected output image width is `2000`.
 

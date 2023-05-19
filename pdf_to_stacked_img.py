@@ -12,6 +12,8 @@ Usage:
 import os
 import argparse
 import warnings
+from string import Template
+
 from PIL import Image
 from pdf2image import convert_from_path
 
@@ -24,58 +26,74 @@ def is_jpeg(filename):
 
 
 def main(args):
-    pdf_path = args.input
-    output_path = args.output
-    output_width = args.width
-    include_separators = args.include_separators
-    separator_height = args.separator_height
-    is_target_img_jpeg = is_jpeg(output_path)
-
-    # Convert PDF into images
-    pdf_images = convert_from_path(
-        pdf_path,
-        first_page=args.first_page,
-        last_page=args.last_page,
-        dpi=args.pdf_to_img_dpi
-    )
-
-    # Get the maximum width
-    if output_width is None:
-        output_width = max([img.width for img in pdf_images])
-    if is_target_img_jpeg and output_width > MAX_IMG_DIM:
-        output_width = MAX_IMG_DIM
-        warnings.warn('Width exceeding 65000. Capped at 65000.')
-
-    # Resize to equal width
-    for i in range(len(pdf_images)):
-        img = pdf_images[i]
-        if img.width != output_width:
-            print(f'Resizing page {i} to width {output_width}...')
-            wpercent = (output_width / float(img.size[0]))
-            hsize = int((float(img.size[1]) * float(wpercent)))
-            rescaled_img = img.resize((output_width, hsize), Image.Resampling.LANCZOS)
-            pdf_images[i] = rescaled_img
+    pdf_files = []
+    if os.path.isdir(args.input):
+        for root, dirs, files in os.walk(args.input):
+            for file in files:
+                if file.lower().endswith('.pdf'):
+                    pdf_files.append(os.path.join(root, file))
+    else:
+        # A file
+        pdf_files.append(args.input)
     
-    # (Optionally) add a separator image after each page, except the last one
-    output_images = []
-    for i, img in enumerate(pdf_images):
-        output_images.append(img)
-        if include_separators and i < len(pdf_images) - 1:
-            separator = Image.new('RGB', (output_width, separator_height), 'black')
-            output_images.append(separator)
+    # Template for output string
+    for index, pdf_file in enumerate(pdf_files):
+        print(f'Processing {pdf_file}...')
+        pdf_filename, _ = os.path.splitext(os.path.basename(pdf_file))
+        output_path = args.output.format(**{
+            'filename': pdf_filename,
+            'number': index
+        })
+        output_width = args.width
+        include_separators = args.include_separators
+        separator_height = args.separator_height
+        is_target_img_jpeg = is_jpeg(output_path)
 
-    # Generate the stacked image
-    total_height = sum([img.height for img in output_images])
-    if is_target_img_jpeg and total_height > MAX_IMG_DIM:
-        print('Error: Output height exceeded JPEG\'s maximum width (65000). Consider using PNG.')
-        exit(1)
-    new_img = Image.new('RGB', (output_width, total_height))
-    y_offset = 0
-    for img in output_images:
-        new_img.paste(img, (0, y_offset))
-        y_offset += img.height
-    new_img.save(output_path)
-    print(f'Image successfully saved in {output_path}. Dimension {new_img.width} x {new_img.height}.')
+        # Convert PDF into images
+        pdf_images = convert_from_path(
+            pdf_file,
+            first_page=args.first_page,
+            last_page=args.last_page,
+            dpi=args.pdf_to_img_dpi
+        )
+
+        # Get the maximum width
+        if output_width is None:
+            output_width = max([img.width for img in pdf_images])
+        if is_target_img_jpeg and output_width > MAX_IMG_DIM:
+            output_width = MAX_IMG_DIM
+            warnings.warn('Width exceeding 65000. Capped at 65000.')
+
+        # Resize to equal width
+        for i in range(len(pdf_images)):
+            img = pdf_images[i]
+            if img.width != output_width:
+                print(f'Resizing page {i} to width {output_width}...')
+                wpercent = (output_width / float(img.size[0]))
+                hsize = int((float(img.size[1]) * float(wpercent)))
+                rescaled_img = img.resize((output_width, hsize), Image.Resampling.LANCZOS)
+                pdf_images[i] = rescaled_img
+        
+        # (Optionally) add a separator image after each page, except the last one
+        output_images = []
+        for i, img in enumerate(pdf_images):
+            output_images.append(img)
+            if include_separators and i < len(pdf_images) - 1:
+                separator = Image.new('RGB', (output_width, separator_height), 'black')
+                output_images.append(separator)
+
+        # Generate the stacked image
+        total_height = sum([img.height for img in output_images])
+        if is_target_img_jpeg and total_height > MAX_IMG_DIM:
+            print('Error: Output height exceeded JPEG\'s maximum width (65000). Consider using PNG.')
+            exit(1)
+        new_img = Image.new('RGB', (output_width, total_height))
+        y_offset = 0
+        for img in output_images:
+            new_img.paste(img, (0, y_offset))
+            y_offset += img.height
+        new_img.save(output_path)
+        print(f'Stacked {pdf_file} was successfully saved as {output_path}. Image resolution: {new_img.width} x {new_img.height}.')
 
 
 if __name__ == "__main__":
@@ -85,14 +103,14 @@ if __name__ == "__main__":
         '--input', 
         metavar='DIR',
         required=True, 
-        help='Input PDF file.')
+        help='Input PDF file or folder containing PDF files.')
     parser.add_argument(
         '-o', 
         '--output', 
         metavar='DIR',
         required=False,
-        default='stacked.png',
-        help='Output image file.')
+        default='stacked {filename}.png',
+        help='Output image file. Default: stacked {filename}.png')
     parser.add_argument(
         '-w', 
         '--width', 
